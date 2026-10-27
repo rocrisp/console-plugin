@@ -43,6 +43,12 @@
   body: Follow a guided walkthrough to inspect, customize, and test reusable VM templates with the CLI.
   quickStartId: vm-templates
 
+- id: vm-export-import
+  kind: quickstart
+  title: Exporting and Importing VMs for Cross-Cluster Mobility
+  body: This tutorial demonstrates how to export virtual machines out of an OpenShift Virtualization cluster and import them into another cluster or back into the same cluster.
+  quickStartId: vm-export-import
+
 - id: pipeline
   kind: pipeline
   title: Tekton Pipeline

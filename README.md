@@ -5,7 +5,7 @@ This dynamic plugin demonstrates three ways a card can act in the OpenShift Cons
 | Interaction         | Cards                                                                                        | Implementation                                                                                |
 | ------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | Open a plugin page  | Custom Page, How-to Use Demos, Creating Virtual Machines, Custom VM Templates                | `console-extensions.json`, `src/components/ExamplePage.tsx`, `src/cookbook/`                  |
-| Start a walkthrough | Create a VM from the web console, Create custom VM templates, VM Instancetypes & Preferences | `src/components/DemosPage.tsx`, `charts/partner-labs-console-plugin/templates/virt-cookbook/` |
+| Start a walkthrough | Create a VM from the web console, Create custom VM templates, VM Instancetypes & Preferences, Exporting and Importing VMs for Cross-Cluster Mobility | `src/components/DemosPage.tsx`, `charts/partner-labs-console-plugin/templates/virt-cookbook/` |
 | Trigger a pipeline  | Tekton Pipeline                                                                              | `src/components/DemosPage.tsx`                                                                |
 
 `src/cards.yaml` is the sparse card registry. Each long cookbook body lives in
@@ -115,3 +115,11 @@ adapted from the VM cookbook's `vm-templates.adoc`. It covers CLI template
 inspection, baseline VM deployment, custom template registration, parameter
 processing, guest login, and cleanup of a dedicated tutorial project. Set
 `plugin.quickStarts.vm-templates.enabled=false` to omit its resource.
+
+The **Exporting and Importing VMs for Cross-Cluster Mobility** card launches the
+`vm-export-import` Quick Start, copied from the
+[VM export/import tutorial](https://github.com/rocrisp/ocp-virt-cookbook/blob/d9373adc49ed26095a809d25d7f0231f36fe111b/modules/vm-lifecycle/pages/vm-export-import.adoc).
+Its tasks follow the cookbook's section order. Commands and manifests are unchanged;
+AsciiDoc formatting and links are converted to Markdown for Console. The QuickStart
+adds no commands, scripts, resource names, or per-task review questions. Set
+`plugin.quickStarts.vm-export-import.enabled=false` to omit its resource.

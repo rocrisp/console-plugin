@@ -136,4 +136,24 @@ test.describe('Console plugin cards', () => {
     ).toBeVisible();
     await expect(page.getByText('Inspect a supplied VM template', { exact: true })).toBeVisible();
   });
+
+  test('opens the VM export and import walkthrough', async ({ page }) => {
+    await page.goto('/partner-labs-demos');
+    await page.getByTestId('card-action-vm-export-import').click();
+    await expect(page).toHaveURL((url) => url.pathname === '/partner-labs-demos');
+    await expect(
+      page.getByRole('heading', {
+        name: 'Exporting and Importing VMs for Cross-Cluster Mobility',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText('Preparing the Demo Environment', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Offline Backup to S3-Compatible Storage', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Publishing VM Images for Sharing', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Automating Export and Import Workflows', { exact: true }),
+    ).toBeVisible();
+  });
 });
