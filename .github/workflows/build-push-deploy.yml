@@ -105,7 +105,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
-      image_ref: ${{ inputs.image_repository }}@${{ steps.build.outputs.digest }}
+      image_digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+      IMAGE_REF: ${{ inputs.image_repository }}@${{ needs.build.outputs.image_digest }}
       SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
       RELEASE_NAME: ${{ inputs.release_name }}
       NAMESPACE: ${{ inputs.namespace }}
@@ -161,6 +161,10 @@ jobs:
           printf 'KUBECONFIG=%s\n' "$RUNNER_TEMP/console-plugin.kubeconfig" >> "$GITHUB_ENV"
       - name: Upgrade or install the plugin
         run: |
+          if [[ ! "$IMAGE_REF" =~ @sha256:[a-f0-9]{64}$ ]]; then
+            echo '::error::The build did not provide a valid image digest. Deployment was not started.'
+            exit 1
+          fi
           helm upgrade --install "$RELEASE_NAME" charts/partner-labs-console-plugin \
             --namespace "$NAMESPACE" \
             --create-namespace \
