@@ -153,6 +153,8 @@ test.describe('Console plugin cards', () => {
       page.getByRole('heading', { name: 'VM Cookbook: Static IP Configuration', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Create a dedicated test project', { exact: true })).toBeVisible();
+  });
+
   test('opens the LVM Storage Operator quick start', async ({ page }) => {
     await page.goto('/partner-labs-demos');
     await page.getByTestId('card-action-install-lvm-storage-operator').click();
@@ -172,5 +174,31 @@ test.describe('Console plugin cards', () => {
       page.getByRole('heading', { name: 'Create custom VM templates', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Inspect a supplied VM template', { exact: true })).toBeVisible();
+  });
+
+  test('opens the VM export and import walkthrough', async ({ page }) => {
+    await page.goto('/partner-labs-demos');
+    await page.getByTestId('card-action-vm-export-import').click();
+    await expect(page).toHaveURL((url) => url.pathname === '/partner-labs-demos');
+    await expect(
+      page.getByRole('heading', {
+        name: 'Exporting and Importing VMs for Cross-Cluster Mobility',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Prepare the source and target projects', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Export the disk to a container registry', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Import the disk on the target cluster', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Download disks and manifests for offline use (optional CLI)', {
+        exact: true,
+      }),
+    ).toBeVisible();
   });
 });

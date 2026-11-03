@@ -1,0 +1,550 @@
+# Adapted from the OpenShift Virtualization Cookbook:
+# https://github.com/rocrisp/ocp-virt-cookbook/blob/d9373adc49ed26095a809d25d7f0231f36fe111b/modules/vm-lifecycle/pages/vm-export-import.adoc
+#
+# MIT License
+# Copyright (c) 2025 OpenShift Virtualization Cookbook
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# GUI workflow checked against current OpenShift 4.22 documentation and Console source:
+# https://github.com/openshift/openshift-docs/tree/enterprise-4.22/virt
+# https://github.com/kubevirt-ui/kubevirt-plugin/tree/release-4.22
+{{- if (index .Values.plugin.quickStarts "vm-export-import").enabled }}
+apiVersion: console.openshift.io/v1
+kind: ConsoleQuickStart
+metadata:
+  name: vm-export-import
+  labels:
+    {{- include "partner-labs-console-plugin.labels" . | nindent 4 }}
+spec:
+  displayName: "Exporting and Importing VMs for Cross-Cluster Mobility"
+  description: "Use the OpenShift 4.22 web console to export a VM disk to a registry, import it on another cluster, and recreate the VM."
+  durationMinutes: 90
+  tags:
+    - virtualization
+    - export
+    - import
+    - backup
+    - sharing
+  prerequisites:
+    - "OpenShift 4.22 with OpenShift Virtualization installed and web console access on the source and target clusters"
+    - "Permission to create projects, VMs, bootable volumes, and registry upload resources, including pods, secrets, service accounts, roles, and role bindings; ask your administrator for help with restricted actions"
+    - "A default StorageClass suitable for VM disks, sufficient storage and compute capacity, and worker nodes capable of running VMs"
+    - "A Fedora template with an available boot source, or another Linux template with a ready boot source"
+    - "A container registry reachable from both clusters, with credentials that can push to the source repository and pull from the target"
+    - "Optional offline-download and automation tasks: a workstation with oc and a virtctl version matching the cluster, cluster login, and enough local disk space"
+    - "Optional backup tasks: access to an S3-compatible bucket; the aws CLI is needed only if your storage console cannot generate a presigned URL"
+  introduction: |-
+    Use the OpenShift **4.22** web console to create and stop a test VM, save its
+    boot disk as a bootable volume, upload it to a registry, and recreate and verify
+    the guest on the target cluster.
+    You can also practice on one cluster with separate `vm-export-demo` and
+    `vm-import-demo` projects, using a disposable Linux VM with a single boot disk.
+
+    The image carries disk data; record and recreate the source VM's compute,
+    firmware, network, initialization, secret, and additional disk settings separately.
+    Menu labels and available actions depend on permissions and installed
+    Virtualization updates.
+    Optional tasks cover local downloads, backups, image sharing, integrity checks,
+    and automation, with commands retained where the GUI does not provide the action.
+  tasks:
+    - title: "Prepare the source and target projects"
+      description: |-
+        1. Open the **source cluster's** web console. In the Administrator
+           navigation, open **Home → Projects → Create Project**.
+        2. Enter `vm-export-demo` as the name and click **Create**. If project
+           creation is restricted, ask your administrator for a dedicated project.
+        3. Open the **target cluster's** console in a second browser tab and create
+           `vm-import-demo` in the same way. For a single-cluster exercise, create
+           both projects on that cluster.
+        4. In each tab, open **Virtualization → VirtualMachines** and select the
+           corresponding project. Check the console hostname and project before
+           each creation or deletion action.
+
+        Use these dedicated projects only for this walkthrough. Provisioning and
+        registry transfers can take several minutes, depending on image size and
+        storage performance.
+      review:
+        instructions: "Can you open VirtualMachines in vm-export-demo on the source and vm-import-demo on the target?"
+        failedTaskHelp: "Check project access and OpenShift Virtualization installation on both clusters. Ask your administrator to create the dedicated projects if needed."
+      summary:
+        success: "You selected separate source and target projects."
+        failed: "Select accessible source and target projects before creating resources."
+
+    - title: "Create a source VM from a template"
+      description: |-
+        1. On the **source cluster**, select `vm-export-demo` and click **Create**
+           on the **VirtualMachines** page.
+        2. On **Deployment details**, select **Create from Template**, enter
+           `app-server` as **Name**, and confirm the project under **Location**.
+           Click **Next**.
+        3. On **Template**, select a Fedora template with an available boot source,
+           then click **Next**. If needed, use another Linux template and record
+           its guest operating system.
+        4. On **Customization**, review **Storage**, compute settings, and
+           **Network**. Use a single persistent boot disk and the default pod
+           network for this exercise. If you need guest login, configure your own
+           credentials or SSH key under **Initial run** or **SSH**.
+        5. On **Review and create**, select **Start this VirtualMachine after
+           creation**, then click **Create VirtualMachine**.
+        6. Wait for **Running**. Open the VM's **Console** tab and confirm that
+           the guest boot screen or login prompt appears.
+
+        You can instead use a disposable VM you already created with **Create a VM
+        from the web console**. Substitute its name for `app-server` throughout.
+      review:
+        instructions: "Is the source test VM Running, and can you see its guest display in Console?"
+        failedTaskHelp: "Choose a template with a ready boot source. Inspect Events and the disk status for storage, import, quota, or scheduling errors."
+      summary:
+        success: "You created a working source VM with a persistent boot disk."
+        failed: "Resolve source VM provisioning or boot errors before exporting."
+
+    - title: "Stop the source VM and record its settings"
+      description: |-
+        1. On the source VM, inspect **Overview**, **Configuration**, and **YAML**.
+           Record the guest OS, CPU and memory or instance type, firmware, disk
+           interfaces and boot order, network configuration, and initialization
+           settings needed on the target.
+        2. Under **Configuration → Storage**, identify the boot disk. Record its
+           PVC name, capacity, and StorageClass. A disk device name such as
+           `rootdisk` can differ from the PVC name.
+        3. Click **Actions → Stop** and confirm if prompted. Wait for **Stopped**.
+        4. Keep the source VM stopped while its disk is copied or exported. Confirm
+           that this is the disposable VM from this walkthrough.
+
+        Stopping the VM interrupts its guest workloads and allows a consistent
+        offline disk copy. Additional data disks require separate transfers and
+        matching attachments on the destination.
+      review:
+        instructions: "Is the source VM Stopped, and have you recorded its boot disk and configuration?"
+        failedTaskHelp: "Wait for shutdown to finish. Check Events if it stalls, and use the VM YAML to identify the persistent boot disk and settings."
+      summary:
+        success: "The source VM is stopped and its required settings are recorded."
+        failed: "Stop the source VM and identify its boot disk before continuing."
+
+    - title: "Save the boot disk as a bootable volume"
+      description: |-
+        1. On the stopped source VM, open **Configuration → Storage**.
+        2. Open the boot disk row's options menu and select **Save as bootable volume**.
+        3. Set **Volume name** to `app-server-image` and **Destination project**
+           to `vm-export-demo`. Review **Disk size** and **StorageClass**; keep
+           enough capacity for the source disk.
+        4. Under **Volume metadata**, select the preference for the source guest
+           OS and the correct architecture. Review the default instance type if
+           offered. Click **Save**.
+        5. Open **Virtualization → Bootable volumes**, select `vm-export-demo`,
+           and locate `app-server-image`. Wait for its backing disk to be ready.
+
+        This creates a reusable bootable volume from the disk. It does not move
+        the VM to another cluster by itself. Keep the source VM stopped until
+        copying and the registry upload have completed.
+      review:
+        instructions: "Can you find the ready app-server-image bootable volume in vm-export-demo?"
+        failedTaskHelp: "Select a PVC-backed boot disk. Supply a matching OS preference if Save is disabled. Check disk cloning, storage capacity, events, and permissions if the volume is not ready."
+      summary:
+        success: "You saved the source boot disk as a reusable bootable volume."
+        failed: "Resolve the bootable volume's configuration or disk provisioning errors."
+
+    - title: "Export the disk to a container registry"
+      description: |-
+        1. On **Virtualization → Bootable volumes** in `vm-export-demo`, open the
+           `app-server-image` row's options menu and select **Upload to registry**.
+        2. Review **Name** and set **Destination** to a repository and tag you can
+           push to, for example `quay.io/<quay-username>/vm-images:app-server`.
+           Replace `<quay-username>` with your account or organization.
+        3. Enter the registry **Username** and **Password** or push-capable robot
+           account token in the dialog.
+        4. Click **Save** and watch the upload progress. If it fails, use the
+           dialog's pod log link to inspect the error.
+        5. Wait for **Succeeded**, then click **Close**. Open the registry's web
+           interface and confirm that the repository contains the `app-server` tag.
+
+        Review the disk's contents before publishing it: the image includes guest
+        files and any credentials stored on the disk. Use the disposable test image
+        and choose repository visibility deliberately. The target needs pull access
+        to this repository.
+
+        If **Upload to registry** is unavailable on your installation, ask your
+        administrator about the action and its permissions. The optional download
+        task below provides a CLI fallback for exporting a local disk.
+      review:
+        instructions: "Did the registry upload succeed, and can you find the destination image tag?"
+        failedTaskHelp: "Check the stopped source disk, push credentials, repository access, uploader pod logs, and connectivity from the cluster to the registry."
+      summary:
+        success: "The exported boot disk is available in your container registry."
+        failed: "Resolve the registry upload error before importing on the target."
+
+    - title: "Import the disk on the target cluster"
+      description: |-
+        1. Switch to the **target cluster's** console and select `vm-import-demo`.
+           Open **Virtualization → VirtualMachines → Create**.
+        2. On **Deployment details**, select **Custom configuration**, set **Name**
+           to `app-server`, and confirm the target under **Location**. Click **Next**.
+        3. On **Guest operating system**, select the source guest OS and version,
+           then click **Next**.
+        4. On **Boot source**, select **Boot volume**, then click **Add volume**.
+        5. Set **Source type** to **Registry** under **Import from**. Enter the
+           image reference from the previous task and supply pull credentials if
+           the repository is private.
+        6. Set **Volume name** to `app-server-image`, **Destination project** to
+           `vm-import-demo`, and **Disk size** to at least the source disk's
+           capacity. Select a target StorageClass and matching OS preference and
+           architecture. Review **Retain revisions** and **Cron expression**;
+           `0 2 * * *` checks for image updates daily at 02:00.
+        7. Click **Save**. Select the new bootable volume on **Boot source** and
+           wait for its import to finish before starting the destination VM.
+           Leave the creation wizard open for the next task.
+
+        The registry form creates a managed boot source with a `DataImportCron`
+        and `DataSource`. Its backing disk name can be generated automatically;
+        do not assume that it is `app-server-root`.
+
+        **Other import sources:** if you already downloaded a disk, choose
+        **Volume** under **Upload new**, select the local image file, and keep the
+        browser tab open until the upload finishes. For a disk on an HTTP or HTTPS
+        server, choose **URL** and enter its **Image URL** instead. Use just one
+        source for this VM. Match the destination size, OS preference, and
+        architecture in each case. Resolve certificate or credential errors before
+        continuing; private registry imports may require administrator assistance.
+      review:
+        instructions: "Is the imported bootable volume selected in the target VM's Boot source step?"
+        failedTaskHelp: "Verify the target project, image reference, credentials, disk capacity, and registry connectivity. Check the bootable volume status and related DataVolume events for import errors."
+      summary:
+        success: "You selected the imported disk as the target VM's boot source."
+        failed: "Complete the disk import and select its bootable volume."
+
+    - title: "Recreate the VM with the imported disk"
+      description: |-
+        1. In the target wizard, click **Next** from **Boot source**. On
+           **Compute resources**, select an instance type and size suitable for
+           the source guest, using the settings you recorded earlier.
+        2. On **Customization**, review **Storage**, disk interfaces and boot
+           order, **Network**, and **Initial run** or **SSH** settings. Recreate
+           any required target-side network attachments, secrets, and credentials.
+        3. Confirm that the boot source is the imported `app-server-image`, rather
+           than a fresh operating system image. The test VM should use the default
+           pod network unless you deliberately configured something else.
+        4. On **Review and create**, confirm the target project and settings.
+           Clear **Start this VirtualMachine after creation** so you can review
+           provisioning first, then click **Create VirtualMachine**.
+        5. Open the new VM's **Configuration → Storage** and **Events**. Wait for
+           disk provisioning to complete. Some storage classes wait for a VM
+           consumer before binding; start the VM in the next task if that is the
+           expected storage behavior.
+
+        An image import transfers disk data. Guest access still uses credentials
+        already present in the guest or initialization you intentionally configure;
+        do not assume that the source template's Kubernetes secrets were copied.
+      review:
+        instructions: "Does the target VM use the imported boot source and the settings required by the source guest?"
+        failedTaskHelp: "Review the VM YAML and Storage configuration. Check firmware, disk interface, boot order, architecture, network attachments, quota, and target storage availability."
+      summary:
+        success: "You recreated the target VM with the imported disk and reviewed settings."
+        failed: "Correct the target VM's boot source and configuration before starting it."
+
+    - title: "Verify the imported VM"
+      description: |-
+        1. On the target VM, click **Actions → Start** and wait for **Running**.
+           Inspect **Events** and disk status if startup takes longer than expected.
+        2. Open **Console**, select **VNC console** if needed, and confirm that
+           the source guest boots. Log in with the guest credentials you configured
+           if you want to check files or applications.
+        3. Confirm that expected guest files and application data are present.
+           Check the guest agent and network connectivity if your workload uses them.
+        4. Open **Overview** and **Metrics** to inspect the destination's state
+           and available monitoring data. Missing guest-agent information alone
+           does not mean that the VM failed.
+        5. Keep the source stopped while deciding which VM should serve the
+           workload. Avoid starting duplicate application instances unintentionally.
+
+        You have completed the main GUI export/import workflow. The next tasks
+        cover optional downloads, backups, sharing, integrity checks, and automation;
+        skip those you do not need and continue to troubleshooting or cleanup.
+      review:
+        instructions: "Is the target VM Running, with the expected guest display and data?"
+        failedTaskHelp: "Check Events, disk import status, boot order, firmware, and the guest console. Compare target settings with the recorded source settings."
+      summary:
+        success: "You verified that the exported guest runs on the target."
+        failed: "Resolve destination boot or data problems before using the imported VM."
+
+    - title: "Download disks and manifests for offline use (optional CLI)"
+      description: |-
+        Skip this task if the registry workflow meets your needs. OpenShift 4.22's
+        documented local export/download workflow uses `virtctl`; the registry
+        upload action does not download a disk to your workstation.
+
+        1. In the source console, confirm that `app-server` is still **Stopped**.
+           Record the source boot disk's actual PVC name from **Configuration → Storage**.
+        2. On your workstation, log in to the **source cluster** with `oc` and
+           create an export in the source project:
+
+           ```bash
+           virtctl vmexport create app-server-export --vm=app-server --ttl=2h -n vm-export-demo
+           ```
+
+        3. Replace `<source-root-pvc>` with the recorded source PVC name and download
+           the boot disk. Keep the export for the following manifest download:
+
+           ```bash
+           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img --keep-vme -n vm-export-demo
+           ```
+
+        4. Download the VM manifest as a reference for its configuration:
+
+           ```bash
+           virtctl vmexport download app-server-export --manifest --output=app-server-manifest.yaml --keep-vme -n vm-export-demo
+           ```
+
+        5. In the source console, open **Home → Search**, select `vm-export-demo`,
+           and search **Resources** for **VirtualMachineExport**. Open
+           `app-server-export` and inspect **YAML** for `status.phase: Ready`,
+           its conditions, and `status.links`. The export expires after its TTL.
+
+        Download requests require the export token; opening a disk URL in a normal
+        browser tab does not supply that header. `virtctl` handles it for you. If
+        your workstation cannot reach the export Route, use `--port-forward`.
+        Trust the cluster's certificate authority; add `--insecure` only for a lab
+        with a certificate you deliberately choose not to verify.
+
+        The exported manifest can contain source-specific namespaces and disk,
+        certificate, or secret references. Review them before any reuse. The GUI
+        workflow above configures a new VM explicitly instead of applying this
+        manifest unchanged. You can import the downloaded disk through **Add
+        volume → Volume** under **Upload new**.
+      review:
+        instructions: "Did you download the disk and manifest successfully, or choose to skip offline downloads?"
+        failedTaskHelp: "Check the source cluster login, stopped VM, actual PVC name, certificate trust, export TTL, and workstation disk space. Try --port-forward if the Route is unreachable."
+      summary:
+        success: "You downloaded offline artifacts or chose the registry-only path."
+        failed: "Resolve the export download error or skip this optional task."
+
+    - title: "Back up to S3-compatible storage (optional)"
+      description: |-
+        This task uses the local disk and manifest from the optional download task.
+
+        1. Open your object storage provider's web console and select a backup
+           bucket. Create a prefix such as `vm-backups/app-server/`.
+        2. Use the bucket's **Upload** action to select `app-server-root.img` and
+           `app-server-manifest.yaml` from your workstation. Upload a checksum file
+           too if you created one in the integrity task below.
+        3. Confirm the uploaded object names and sizes. Configure retention or
+           versioning through your storage provider as appropriate for the backup.
+        4. For a restore, generate a presigned HTTPS URL for the disk using the
+           provider's web console if it offers that action. Choose a lifetime long
+           enough for the image import.
+        5. On the destination cluster, use **Create → Custom configuration → Boot
+           source → Add volume → URL**, enter the presigned **Image URL**, and
+           finish the VM configuration and verification as in the main workflow.
+           Use an unused VM and volume name for a separate restore test.
+
+        If your storage console cannot generate a presigned URL, this optional
+        workstation command does so for AWS S3:
+
+        ```bash
+        aws s3 presign s3://<backup-bucket>/vm-backups/app-server/app-server-root.img --expires-in 43200
+        ```
+
+        Replace `<backup-bucket>` with your bucket. For private certificate
+        authorities, configure the CA in the URL import form's certificate settings
+        or have your administrator configure the DataVolume's `certConfigMap`.
+        The registry image alone is not the local raw disk used by this task.
+      review:
+        instructions: "Did you verify the backup objects and restore method, or choose to skip object storage?"
+        failedTaskHelp: "Check bucket upload permissions, object sizes, URL expiry, destination connectivity, and certificate trust. Complete the optional local download first if you need disk files."
+      summary:
+        success: "You reviewed object storage backup and restore, or skipped this option."
+        failed: "Resolve the backup or URL import issue, or skip this optional task."
+
+    - title: "Share VM images (optional)"
+      description: |-
+        The target's registry-backed bootable volume already provides a reusable
+        image. You do not need to create another DataImportCron for the same volume.
+
+        1. On the target cluster, open **Virtualization → Bootable volumes** and
+           locate `app-server-image` in `vm-import-demo`.
+        2. Use **Home → Search** in that project to inspect the related
+           **DataSources** and **DataImportCrons**. The registry import form's
+           **Cron expression** and **Retain revisions** settings govern refreshes.
+        3. To let another project consume the registry image, select that project
+           and use **Add volume → Registry** with suitable pull credentials,
+           destination storage, preference, architecture, and refresh settings.
+        4. When creating another test VM, select the imported bootable volume in
+           **Boot source** and choose an unused VM name.
+
+        A new VM receives its own disk copy. Updating a registry tag or refreshing
+        the managed boot source does not replace disks of existing VMs. Use a
+        separate, deliberate update procedure for running workloads.
+      review:
+        instructions: "Can you identify the shared boot source and its refresh resources, or have you skipped sharing?"
+        failedTaskHelp: "Check the target project's bootable volumes and DataSource readiness. Inspect the DataImportCron, registry credentials, and import events if refreshes fail."
+      summary:
+        success: "You located the reusable image and its refresh settings, or skipped sharing."
+        failed: "Check the bootable volume and its managed import resources."
+
+    - title: "Verify data integrity (optional local checks)"
+      description: |-
+        1. In the destination console, inspect **Events** and **Configuration →
+           Storage**. Confirm that disk imports completed and PVCs are bound when
+           required by the storage class. In **Home → Search**, inspect the related
+           **DataVolume** YAML for a successful phase and progress.
+        2. Confirm that the guest boots and that expected files and applications
+           work through **Console**. Run workload-specific consistency checks for
+           applications that require them.
+        3. For offline files, calculate a checksum on your workstation immediately
+           after download and store it alongside the artifact:
+
+           ```bash
+           sha256sum app-server-root.img > app-server-root.sha256
+           ```
+
+           On macOS, use `shasum -a 256 app-server-root.img > app-server-root.sha256`.
+
+        4. After retrieving the file from backup, compare it against that checksum:
+
+           ```bash
+           sha256sum -c app-server-root.sha256
+           ```
+
+           On macOS, use `shasum -a 256 -c app-server-root.sha256`.
+
+        A checksum compares the same disk file before and after transfer. The
+        registry container's digest identifies its container content, so do not
+        compare that digest directly with the raw disk's checksum. `qemu-img info`
+        can report format and size; it does not prove file integrity. VM startup
+        and application checks complement transfer checksums.
+      review:
+        instructions: "Does the target guest work, and do any offline files you verified match their recorded checksums?"
+        failedTaskHelp: "Inspect import errors and guest behavior. For a checksum mismatch, retrieve the artifact again and investigate the transfer before using it. Skip local checks if you have no offline files."
+      summary:
+        success: "You checked the destination guest and any offline transfer artifacts."
+        failed: "Resolve guest validation failures or mismatched file checksums."
+
+    - title: "Automate export and import workflows (optional CLI)"
+      description: |-
+        Use the GUI for interactive practice. Pipelines and scheduled backup jobs
+        require a separate automation workflow and appropriate service-account access.
+
+        1. If you need automation, use a stopped source VM or an appropriate
+           snapshot-backed export. Create an export as in the optional download task.
+        2. For an unattended disk download, replace `<source-root-pvc>` and run:
+
+           ```bash
+           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img --retry=3 --readiness-timeout=10m --delete-vme -n vm-export-demo
+           ```
+
+        3. Download any required manifest before this command: `--delete-vme`
+           deletes the export after a successful download. Configure certificate
+           trust or use `--port-forward` if needed.
+        4. Gate subsequent backup or import actions on successful commands,
+           transfer verification, completed disk provisioning, and guest checks.
+        5. For scheduled registry-image refreshes, use the **Cron expression** in
+           the GUI registry import form. This refreshes a boot source; it does not
+           schedule source-VM exports, backups, or updates to existing VM disks.
+
+        Adapt the manual workflow to your scheduler and credential management.
+        Creating a backup pipeline is beyond this interactive walkthrough.
+      review:
+        instructions: "Do you understand which actions need automation and which the registry import schedule covers, or have you skipped automation?"
+        failedTaskHelp: "Review export prerequisites, certificate access, TTL, command exit handling, and the difference between a source backup and a managed boot-source refresh."
+      summary:
+        success: "You reviewed automation boundaries or chose the interactive workflow."
+        failed: "Review the optional automation prerequisites and completion checks."
+
+    - title: "Troubleshoot in the web console"
+      description: |-
+        Use these checks if a task failed; otherwise continue to cleanup.
+
+        1. **Bootable volume is not ready:** open the source VM's **Events**,
+           inspect its disk and PVC, and use **Home → Search** to inspect related
+           DataVolumes. Confirm storage capacity, source shutdown, and permissions.
+        2. **Registry upload fails:** reopen the upload's pod log link, or find its
+           uploader pod under **Workloads → Pods** in the source project and open
+           **Logs**. Check push credentials, repository access, and connectivity.
+        3. **Import stalls:** inspect the target bootable volume, DataImportCron,
+           DataVolume, and importer pod's **Events** and **Logs**. Check the image
+           reference, pull credentials, available storage, URL expiry, and TLS errors.
+        4. **Target VM does not boot:** open its **Console** and **Events**. Compare
+           the boot source, architecture, firmware, disk interface, boot order,
+           compute settings, and storage with the source before assuming corruption.
+        5. **Optional export expires:** inspect **VirtualMachineExport** through
+           **Home → Search**. Exports are automatically removed at the end of their
+           TTL; recreate an expired export if another download is needed.
+
+        Record the resource name and relevant error when asking your administrator
+        for help. Review error output before sharing it if it includes credentials
+        or a presigned URL.
+      review:
+        instructions: "Can you locate the relevant status, events, and pod logs for any failed operation?"
+        failedTaskHelp: "Confirm that you are in the correct cluster and project. Ask your administrator for read access to the related resources if their status or logs are hidden."
+      summary:
+        success: "You located the Console views used to diagnose export and import problems."
+        failed: "Find the failing resource and inspect its status, events, or logs."
+
+    - title: "Keep or remove the tutorial resources"
+      description: |-
+        Decide which test resources you want to keep. Deleting disks or backup
+        objects permanently removes their data.
+
+        1. **Keep the VMs:** select **Actions → Stop** on any running test VM.
+           Its disk storage remains allocated. Review managed image refreshes if
+           you keep the bootable volumes.
+        2. **Remove a VM:** on each cluster, select only the tutorial VM and use
+           **Actions → Delete**. Review the associated disk choices before
+           confirming. Retain a disk only if you intend to reuse its data.
+        3. On **Virtualization → Bootable volumes**, review and delete unwanted
+           tutorial volumes. **Remove from list** and **Delete** have different
+           effects; inspect associated DataSources, DataImportCrons, and PVCs to
+           confirm what remains.
+        4. Use **Home → Search** and **Workloads → Pods** to review leftover
+           tutorial exports, upload pods, and registry credential secrets. Remove
+           them only after checking their names and ownership.
+        5. If a dedicated project contains only disposable tutorial resources,
+           you can delete it from **Home → Projects** after reviewing everything
+           it contains. Do not delete shared projects or unrelated resources.
+        6. Use the registry and object storage web interfaces to remove unwanted
+           image tags and backup objects. Remove local downloads with your file
+           manager if you no longer need them.
+      review:
+        instructions: "Are the tutorial VMs stopped or removed, with disks, refresh resources, and external artifacts kept or deleted as intended?"
+        failedTaskHelp: "Review both clusters and projects, retained PVCs, bootable volume resources, registry tags, bucket objects, and workstation files. Check dependencies before deleting anything else."
+      summary:
+        success: "You chose how to retain or remove the tutorial resources."
+        failed: "Review remaining resources and confirm that they match your cleanup choice."
+  conclusion: |-
+    You used the OpenShift 4.22 web console to create a source VM, stop it, save
+    its boot disk as a bootable volume, upload the disk to a registry, import it
+    on the destination, and recreate and verify the guest.
+
+    The registry moves disk data between clusters. VM configuration, additional
+    disks, network attachments, initialization settings, and secrets need separate
+    review on the target. Boot-source refreshes serve newly created VMs; they do
+    not update existing VM disks.
+
+    Optional tasks showed where local export/download commands, object storage,
+    checksums, and automation fit into the workflow.
+
+    ## Further reading
+
+    * [OpenShift 4.22 virtualization documentation](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/virtualization/index)
+    * [OpenShift 4.22: Create a VM from a template](https://github.com/openshift/openshift-docs/blob/enterprise-4.22/modules/virt-creating-vm-from-template-web.adoc)
+    * [OpenShift 4.22: Create a VM with custom configuration](https://github.com/openshift/openshift-docs/blob/enterprise-4.22/modules/virt-creating-vm-custom-configuration-web.adoc)
+    * [OpenShift 4.22: Export a virtual machine](https://github.com/openshift/openshift-docs/blob/enterprise-4.22/virt/managing_vms/virt-exporting-vms.adoc)
+    * [OpenShift 4.22: Import a VM image using the DataVolume API](https://github.com/openshift/openshift-docs/blob/enterprise-4.22/virt/creating_vm/virt-import-dv-vms.adoc)
+    * [VM export/import cookbook](https://github.com/rocrisp/ocp-virt-cookbook/blob/d9373adc49ed26095a809d25d7f0231f36fe111b/modules/vm-lifecycle/pages/vm-export-import.adoc)
+  nextQuickStart: []
+{{- end }}
