@@ -1,0 +1,181 @@
+name: Build, push to Quay, and deploy
+run-name: Deploy ${{ inputs.source_ref }} to ${{ inputs.namespace }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Branch, tag, or commit in this fork to build and deploy
+        required: true
+        default: main
+        type: string
+      image_repository:
+        description: Quay repository without a tag
+        required: true
+        default: quay.io/rocrisp/partner-labs-console-plugin
+        type: string
+      release_name:
+        description: Helm release name
+        required: true
+        default: partner-labs-console-plugin
+        type: string
+      namespace:
+        description: OpenShift deployment namespace
+        required: true
+        default: partner-labs-console-plugin
+        type: string
+
+permissions:
+  contents: read
+
+# Serialize upgrades to the same release, including runs from different branches.
+concurrency:
+  group: deploy-${{ inputs.namespace }}-${{ inputs.release_name }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  validate:
+    name: Validate source and chart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+      - name: Record the exact source commit
+        id: source
+        run: printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Validate pipeline configuration
+        env:
+          IMAGE_REPOSITORY: ${{ inputs.image_repository }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          NAMESPACE: ${{ inputs.namespace }}
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          OPENSHIFT_KUBECONFIG: ${{ secrets.OPENSHIFT_KUBECONFIG }}
+        run: |
+          for secret_name in QUAY_USERNAME QUAY_PASSWORD OPENSHIFT_KUBECONFIG; do
+            if [[ -z "${!secret_name}" ]]; then
+              printf '::error::Set the %s repository secret before running this workflow.\n' "$secret_name"
+              exit 1
+            fi
+          done
+          if [[ ! "$IMAGE_REPOSITORY" =~ ^quay\.io/[a-z0-9_][a-z0-9_.-]*/[a-z0-9_][a-z0-9_.-]*$ ]]; then
+            echo '::error::Use a lowercase quay.io/namespace/repository without a tag or digest.'
+            exit 1
+          fi
+          if [[ ! "$RELEASE_NAME" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ || ${#RELEASE_NAME} -gt 53 ]]; then
+            echo '::error::Use a valid Helm release name of at most 53 characters.'
+            exit 1
+          fi
+          if [[ ! "$NAMESPACE" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ || ${#NAMESPACE} -gt 63 ]]; then
+            echo '::error::Use a valid namespace name of at most 63 characters.'
+            exit 1
+          fi
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: v4.2.4
+      - name: Install dependencies
+        run: node .yarn/releases/yarn-4.18.0.cjs install --immutable
+      - name: Check types and lint
+        run: |
+          node .yarn/releases/yarn-4.18.0.cjs exec tsc --noEmit
+          node .yarn/releases/yarn-4.18.0.cjs exec tsc --project scripts/tsconfig.json
+          node .yarn/releases/yarn-4.18.0.cjs exec eslint src scripts integration-tests --max-warnings 0
+          node .yarn/releases/yarn-4.18.0.cjs exec stylelint 'src/**/*.css' --allow-empty-input
+      - name: Validate QuickStarts and Helm switches
+        run: node .yarn/releases/yarn-4.18.0.cjs validate:quickstarts
+      - name: Run unit tests
+        run: node .yarn/releases/yarn-4.18.0.cjs test --ci --runInBand --watchman=false
+
+  build:
+    name: Build and push amd64 image
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      image_ref: ${{ inputs.image_repository }}@${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ needs.validate.outputs.source_sha }}
+          persist-credentials: false
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Log in to Quay
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ inputs.image_repository }}:sha-${{ needs.validate.outputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.validate.outputs.source_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy with Helm
+    needs: [validate, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      IMAGE_REF: ${{ needs.build.outputs.image_ref }}
+      SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
+      RELEASE_NAME: ${{ inputs.release_name }}
+      NAMESPACE: ${{ inputs.namespace }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ needs.validate.outputs.source_sha }}
+          persist-credentials: false
+      - uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        with:
+          version: v4.2.4
+      - name: Configure cluster access
+        env:
+          OPENSHIFT_KUBECONFIG: ${{ secrets.OPENSHIFT_KUBECONFIG }}
+        run: |
+          umask 077
+          printf '%s\n' "$OPENSHIFT_KUBECONFIG" > "$RUNNER_TEMP/console-plugin.kubeconfig"
+          printf 'KUBECONFIG=%s\n' "$RUNNER_TEMP/console-plugin.kubeconfig" >> "$GITHUB_ENV"
+      - name: Upgrade or install the plugin
+        run: |
+          helm upgrade --install "$RELEASE_NAME" charts/partner-labs-console-plugin \
+            --namespace "$NAMESPACE" \
+            --create-namespace \
+            --reset-then-reuse-values \
+            --set-string "plugin.image=$IMAGE_REF" \
+            --rollback-on-failure \
+            --wait=watcher \
+            --wait-for-jobs \
+            --timeout 10m \
+            --history-max 10
+      - name: Report deployment
+        run: |
+          helm status "$RELEASE_NAME" --namespace "$NAMESPACE"
+          printf '### Deployed console plugin\n\n- Source commit: `%s`\n- Image: `%s`\n- Release: `%s`\n- Namespace: `%s`\n' \
+            "$SOURCE_SHA" "$IMAGE_REF" "$RELEASE_NAME" "$NAMESPACE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary kubeconfig
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/console-plugin.kubeconfig"
