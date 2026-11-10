@@ -201,6 +201,7 @@ spec:
         success: "The imported guest runs on the target."
         failed: "Resolve target boot or data errors."
 
+    # Console copy blocks parse Markdown/HTML; entities preserve shell characters.
     - title: "Download disks and manifests for offline use (optional CLI)"
       description: |-
         Skip if you only need the registry workflow.
@@ -208,30 +209,32 @@ spec:
         1. Keep the source VM stopped. Log in to the source with `oc` on your workstation.
         2. Create an export:
 
-           ```bash
-           virtctl vmexport create app-server-export \
-             --vm=app-server \
-             --ttl=2h \
-             -n vm-export-demo
            ```
+           virtctl vmexport create app-server-export &#92;
+             --vm=app-server &#92;
+             --ttl=2h &#92;
+             -n vm-export-demo
+           ```{{"{{copy}}"}}
 
         3. Replace `<source-root-pvc>` with the PVC recorded under
            **Configuration → Storage**, then download the gzip-compressed disk
            and manifest:
 
-           ```bash
-           virtctl vmexport download app-server-export \
-             --volume=<source-root-pvc> \
-             --output=app-server-root.img.gz \
-             --keep-vme \
-             -n vm-export-demo
-
-           virtctl vmexport download app-server-export \
-             --manifest \
-             --output=app-server-manifest.yaml \
-             --keep-vme \
-             -n vm-export-demo
            ```
+           virtctl vmexport download app-server-export &#92;
+             --volume=&lt;source-root-pvc&gt; &#92;
+             --output=app-server-root.img.gz &#92;
+             --keep-vme &#92;
+             -n vm-export-demo
+           ```{{"{{copy}}"}}
+
+           ```
+           virtctl vmexport download app-server-export &#92;
+             --manifest &#92;
+             --output=app-server-manifest.yaml &#92;
+             --keep-vme &#92;
+             -n vm-export-demo
+           ```{{"{{copy}}"}}
 
         4. Confirm both files exist. Review source-specific references before
            reusing the manifest. If the Route is unreachable or a download ends
@@ -284,16 +287,16 @@ spec:
            Check expected guest files and applications in **Console**.
         2. Immediately after a local disk download, record its checksum:
 
-           ```bash
-           sha256sum app-server-root.img.gz \
-             > app-server-root.sha256
            ```
+           sha256sum app-server-root.img.gz &#92;
+             &gt; app-server-root.sha256
+           ```{{"{{copy}}"}}
 
         3. Store the checksum with the backup. After retrieving the disk, compare:
 
-           ```bash
-           sha256sum -c app-server-root.sha256
            ```
+           sha256sum -c app-server-root.sha256
+           ```{{"{{copy}}"}}
 
         On macOS, replace `sha256sum` with `shasum -a 256`.
         Compare the same disk file before and after transfer.
@@ -310,15 +313,15 @@ spec:
            Download the manifest first if needed.
         2. Replace `<source-root-pvc>` and run an unattended disk download:
 
-           ```bash
-           virtctl vmexport download app-server-export \
-             --volume=<source-root-pvc> \
-             --output=app-server-root.img.gz \
-             --retry=3 \
-             --readiness-timeout=10m \
-             --delete-vme \
-             -n vm-export-demo
            ```
+           virtctl vmexport download app-server-export &#92;
+             --volume=&lt;source-root-pvc&gt; &#92;
+             --output=app-server-root.img.gz &#92;
+             --retry=3 &#92;
+             --readiness-timeout=10m &#92;
+             --delete-vme &#92;
+             -n vm-export-demo
+           ```{{"{{copy}}"}}
 
         3. Continue only after successful download, checksum verification, disk
            import, and guest checks. The command deletes the export after downloading.
