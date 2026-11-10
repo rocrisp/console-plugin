@@ -94,8 +94,10 @@ spec:
         1. Record the VM's OS, architecture, compute, firmware, disk interfaces,
            boot order, network, and initialization settings from **Configuration**
            and **YAML**.
-        2. Under **Configuration → Storage**, record the boot disk's PVC name,
-           capacity, and StorageClass.
+        2. Under **Configuration → Storage**, find the boot disk in **Disks**.
+           Record **Size** as capacity and **Storage class** as StorageClass.
+           **Source** displays the DataVolume link; open its **YAML** and record
+           `status.claimName` as the PVC name.
         3. Click **Actions → Control → Stop**. Wait for **Stopped** and keep the source
            stopped through the copy and upload.
       review:
