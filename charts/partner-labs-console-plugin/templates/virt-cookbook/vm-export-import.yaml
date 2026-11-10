@@ -63,7 +63,8 @@ spec:
            Create `vm-export-demo`.
         2. In a second tab, open the target cluster and create `vm-import-demo`.
         3. In each tab, open **Virtualization → VirtualMachines** and select
-           the corresponding project.
+           the corresponding project. If it is hidden, turn off
+           **Show only projects with VirtualMachines**.
       review:
         instructions: "Are vm-export-demo and vm-import-demo selected on the source and target?"
         failedTaskHelp: "Check cluster and project access. Ask your administrator to create the projects if needed."
@@ -95,7 +96,7 @@ spec:
            and **YAML**.
         2. Under **Configuration → Storage**, record the boot disk's PVC name,
            capacity, and StorageClass.
-        3. Click **Actions → Stop**. Wait for **Stopped** and keep the source
+        3. Click **Actions → Control → Stop**. Wait for **Stopped** and keep the source
            stopped through the copy and upload.
       review:
         instructions: "Is the source Stopped, with its disk and VM settings recorded?"
@@ -140,20 +141,23 @@ spec:
         1. On the target, select `vm-import-demo` and open
            **Virtualization → VirtualMachines → Create → Custom configuration**.
         2. Name the VM `app-server`, confirm **Location**, and click **Next**.
-        3. Select the source guest OS and version, then click **Next**.
+        3. Select the source guest OS. For Fedora, choose **Other Linux →
+           Guest operating system type → fedora**. Select a version only if shown,
+           then click **Next**.
         4. On **Boot source**, select **Boot volume → Add volume**.
-        5. Choose **Registry** under **Import from**. Enter the exported image
+        5. Choose **Registry** under **Source type**. Enter the exported image
            reference and pull credentials for a private repository.
         6. Set **Volume name** to `app-server-image`, **Destination project** to
            `vm-import-demo`, and **Disk size** to at least the source capacity.
            Select the target StorageClass, OS preference, and architecture.
-           Review **Retain revisions** and **Cron expression**.
-        7. Click **Save** and select the imported volume as **Boot source**.
-           Leave the wizard open.
+           Set **Cron expression** to `0 2 * * *` and review **Retain revisions**.
+        7. Click **Save** and wait for `app-server-image` to be ready. Set
+           **Volumes project** to `vm-import-demo` and explicitly select its row.
+           Leave the wizard open on **Boot source**.
 
         For a local disk, use **Upload new → Volume**; for an HTTPS disk, use **URL**.
       review:
-        instructions: "Is app-server-image selected as the target boot source?"
+        instructions: "Is app-server-image ready and selected as the target boot source in vm-import-demo?"
         failedTaskHelp: "Check the image reference, pull credentials, capacity, connectivity, and DataVolume events."
       summary:
         success: "The imported boot source is selected."
@@ -179,7 +183,7 @@ spec:
 
     - title: "Verify the imported VM"
       description: |-
-        1. Click **Actions → Start** on the target VM. Wait for **Running**.
+        1. Click **Actions → Control → Start** on the target VM. Wait for **Running**.
         2. Open **Console** and log in with the guest credentials.
         3. Verify expected files, applications, and network connectivity.
         4. Keep the source stopped while the target serves the workload.
@@ -204,15 +208,17 @@ spec:
            ```
 
         3. Replace `<source-root-pvc>` with the PVC recorded under
-           **Configuration → Storage**, then download the disk and manifest:
+           **Configuration → Storage**, then download the gzip-compressed disk
+           and manifest:
 
            ```bash
-           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img --keep-vme -n vm-export-demo
+           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img.gz --keep-vme -n vm-export-demo
            virtctl vmexport download app-server-export --manifest --output=app-server-manifest.yaml --keep-vme -n vm-export-demo
            ```
 
         4. Confirm both files exist. Review source-specific references before
-           reusing the manifest. Add `--port-forward` if the export Route is unreachable.
+           reusing the manifest. If the Route is unreachable or a download ends
+           with `unexpected EOF`, retry with `--port-forward`.
       review:
         instructions: "Are the disk and manifest downloaded, or did you skip this task?"
         failedTaskHelp: "Check source login, PVC name, certificate trust, export expiry, and local disk space."
@@ -259,7 +265,7 @@ spec:
         2. Immediately after a local disk download, record its checksum:
 
            ```bash
-           sha256sum app-server-root.img > app-server-root.sha256
+           sha256sum app-server-root.img.gz > app-server-root.sha256
            ```
 
         3. Store the checksum with the backup. After retrieving the disk, compare:
@@ -284,11 +290,14 @@ spec:
         2. Replace `<source-root-pvc>` and run an unattended disk download:
 
            ```bash
-           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img --retry=3 --readiness-timeout=10m --delete-vme -n vm-export-demo
+           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img.gz --retry=3 --readiness-timeout=10m --delete-vme -n vm-export-demo
            ```
 
         3. Continue only after successful download, checksum verification, disk
            import, and guest checks. The command deletes the export after downloading.
+
+        If the Route is unreachable or the download ends with `unexpected EOF`,
+        recreate the export if needed and retry with `--port-forward`.
 
         See the cookbook for scheduling and pipeline examples.
       review:
@@ -319,8 +328,9 @@ spec:
 
     - title: "Keep or remove the tutorial resources"
       description: |-
-        1. To keep a VM, use **Actions → Stop**.
-        2. To remove it, use **Actions → Delete** and review associated disk choices.
+        1. Before keeping or deleting a VM, use **Actions → Control → Stop**
+           and wait for **Stopped**.
+        2. To remove the stopped VM, use **Actions → Delete** and review associated disk choices.
         3. Under **Virtualization → Bootable volumes**, delete unwanted tutorial
            volumes. Check related DataSources, DataImportCrons, and PVCs.
         4. In **Home → Search** and **Workloads → Pods**, remove unneeded tutorial
