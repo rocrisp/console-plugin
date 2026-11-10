@@ -1,7 +1,10 @@
 name: Build, push to Quay, and deploy
-run-name: Deploy ${{ inputs.source_ref }} to ${{ inputs.namespace }}
+run-name: Deploy ${{ inputs.source_ref || github.sha }} to ${{ inputs.namespace || 'partner-labs-console-plugin' }}
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       source_ref:
@@ -30,7 +33,7 @@ permissions:
 
 # Serialize upgrades to the same release, including runs from different branches.
 concurrency:
-  group: deploy-${{ inputs.namespace }}-${{ inputs.release_name }}
+  group: deploy-${{ inputs.namespace || 'partner-labs-console-plugin' }}-${{ inputs.release_name || 'partner-labs-console-plugin' }}
   cancel-in-progress: false
 
 defaults:
@@ -47,16 +50,17 @@ jobs:
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
       - name: Record the exact source commit
         id: source
         run: printf 'sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Validate pipeline configuration
+        # Push events have no workflow_dispatch inputs; use the same deployment defaults.
         env:
-          IMAGE_REPOSITORY: ${{ inputs.image_repository }}
-          RELEASE_NAME: ${{ inputs.release_name }}
-          NAMESPACE: ${{ inputs.namespace }}
+          IMAGE_REPOSITORY: ${{ inputs.image_repository || 'quay.io/rocrisp/partner-labs-console-plugin' }}
+          RELEASE_NAME: ${{ inputs.release_name || 'partner-labs-console-plugin' }}
+          NAMESPACE: ${{ inputs.namespace || 'partner-labs-console-plugin' }}
           QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
           QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
           OPENSHIFT_KUBECONFIG: ${{ secrets.OPENSHIFT_KUBECONFIG }}
@@ -127,7 +131,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ inputs.image_repository }}:sha-${{ needs.validate.outputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          tags: ${{ inputs.image_repository || 'quay.io/rocrisp/partner-labs-console-plugin' }}:sha-${{ needs.validate.outputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.validate.outputs.source_sha }}
@@ -140,10 +144,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      IMAGE_REF: ${{ inputs.image_repository }}@${{ needs.build.outputs.image_digest }}
+      IMAGE_REF: ${{ inputs.image_repository || 'quay.io/rocrisp/partner-labs-console-plugin' }}@${{ needs.build.outputs.image_digest }}
       SOURCE_SHA: ${{ needs.validate.outputs.source_sha }}
-      RELEASE_NAME: ${{ inputs.release_name }}
-      NAMESPACE: ${{ inputs.namespace }}
+      RELEASE_NAME: ${{ inputs.release_name || 'partner-labs-console-plugin' }}
+      NAMESPACE: ${{ inputs.namespace || 'partner-labs-console-plugin' }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
