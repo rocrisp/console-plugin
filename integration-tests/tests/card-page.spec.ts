@@ -187,6 +187,12 @@ test.describe('Console plugin cards', () => {
       }),
     ).toBeVisible();
     await expect(
+      page.getByRole('link', { name: 'OpenShift Virtualization cookbook', exact: true }),
+    ).toHaveAttribute(
+      'href',
+      'https://redhatquickcourses.github.io/ocp-virt-cookbook/ocp-virt-cookbook/1/vm-lifecycle/vm-export-import.html',
+    );
+    await expect(
       page.getByText('Prepare the source and target projects', { exact: true }),
     ).toBeVisible();
     await expect(

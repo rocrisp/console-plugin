@@ -76,7 +76,7 @@
 - id: vm-export-import
   kind: quickstart
   title: Exporting and Importing VMs for Cross-Cluster Mobility
-  body: Use the OpenShift 4.22 web console to export a VM disk to a registry, import it on another cluster, and recreate the VM.
+  body: Export a VM disk to a registry, import it on another cluster, and recreate the VM.
   quickStartId: vm-export-import
 
 - id: pipeline
