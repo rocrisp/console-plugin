@@ -58,9 +58,9 @@ spec:
   tasks:
     - title: "Prepare the source and target projects"
       description: |-
-        1. In the source cluster's Administrator navigation, open
+        1. In the source cluster's **Core platform** navigation, open
            **Home → Projects → Create Project**.
-           Create `vm-export-demo`.
+           Set **Name** to `vm-export-demo` and click **Create**.
         2. In a second tab, open the target cluster and create `vm-import-demo`.
         3. In each tab, open **Virtualization → VirtualMachines** and select
            the corresponding project. If it is hidden, turn off
@@ -74,8 +74,9 @@ spec:
 
     - title: "Create a source VM from a template"
       description: |-
-        1. In `vm-export-demo`, click **Create → Create from Template**.
-           Name the VM `app-server` and click **Next**.
+        1. In `vm-export-demo`, click **Create**. On **Deployment details**,
+           select **Create from Template**, set **Name** to `app-server`,
+           and click **Next**.
         2. Select a Linux template with a ready boot source and click **Next**.
         3. On **Customization**, use one persistent boot disk and the default
            pod network. Configure guest credentials under **Initial run** or **SSH**.
@@ -91,15 +92,15 @@ spec:
 
     - title: "Stop the source VM and record its settings"
       description: |-
-        1. Record the VM's OS, architecture, compute, firmware, disk interfaces,
-           boot order, network, and initialization settings from **Configuration**
-           and **YAML**.
+        1. Save a VM configuration reference with **YAML → Download**.
+           Record OS, architecture, compute, firmware, disk interfaces, boot order,
+           network, and initialization settings from **Configuration** and the YAML.
         2. Under **Configuration → Storage**, find the boot disk in **Disks**.
            Record **Size** as capacity and **Storage class** as StorageClass.
            **Source** displays the DataVolume link; open its **YAML** and record
            `status.claimName` as the PVC name.
-        3. Click **Actions → Control → Stop**. Wait for **Stopped** and keep the source
-           stopped through the copy and upload.
+        3. If running, click **Actions → Control → Stop**. Wait for **Stopped**
+           and keep the source stopped through the copy and upload.
       review:
         instructions: "Is the source Stopped, with its disk and VM settings recorded?"
         failedTaskHelp: "Check Events for shutdown errors and YAML for disk and VM settings."
@@ -112,12 +113,12 @@ spec:
         1. Open **Configuration → Storage** on the stopped source VM.
         2. From the boot disk's options menu, select **Save as bootable volume**.
         3. Set **Volume name** to `app-server-image` and **Destination project**
-           to `vm-export-demo`. Confirm disk size and StorageClass.
-        4. Select the matching OS preference and architecture. Click **Save**.
-        5. Open **Virtualization → Bootable volumes** and wait for
-           `app-server-image` to be ready.
+           to `vm-export-demo`. Confirm **Disk size** and **StorageClass**.
+        4. Select the matching **Preference** and **Architecture**. Click **Save**.
+        5. On **DataSource details**, wait for **Ready**. The selected architecture
+           is appended to the name, for example `app-server-image-amd64`.
       review:
-        instructions: "Is app-server-image ready in vm-export-demo?"
+        instructions: "Is the saved bootable volume Ready in vm-export-demo?"
         failedTaskHelp: "Check the OS preference, disk clone, storage capacity, and events."
       summary:
         success: "The bootable volume is ready."
@@ -125,12 +126,13 @@ spec:
 
     - title: "Export the disk to a container registry"
       description: |-
-        1. From `app-server-image`'s options menu, select **Upload to registry**.
+        1. On the saved bootable volume, click **Actions → Upload to registry**.
         2. Set **Destination** to `quay.io/<quay-username>/vm-images:app-server`,
            replacing `<quay-username>` with your account or organization.
-        3. Enter push credentials and click **Save**. Use a repository whose
-           visibility is appropriate for the guest files and credentials on the disk.
-        4. Wait for **Succeeded**, click **Close**, and verify the tag in the registry.
+        3. Enter **Username** and **Password** with push access and click **Save**.
+           Use a repository whose visibility is appropriate for the guest files
+           and credentials on the disk.
+        4. Wait for **Completed** to show success, click **Close**, and verify the tag in the registry.
       review:
         instructions: "Did the upload succeed, with the app-server tag visible in the registry?"
         failedTaskHelp: "Check push permissions, registry connectivity, and the upload dialog's pod log link."
@@ -141,23 +143,24 @@ spec:
     - title: "Import the disk on the target cluster"
       description: |-
         1. On the target, select `vm-import-demo` and open
-           **Virtualization → VirtualMachines → Create → Custom configuration**.
-        2. Name the VM `app-server`, confirm **Location**, and click **Next**.
+           **Virtualization → VirtualMachines → Create**. On **Deployment details**,
+           select **Custom configuration (default)**.
+        2. Set **Name** to `app-server`, confirm **Location**, and click **Next**.
         3. Select the source guest OS. For Fedora, choose **Other Linux →
            Guest operating system type → fedora**. Select a version only if shown,
            then click **Next**.
-        4. On **Boot source**, select **Boot volume → Add volume**.
-        5. Choose **Registry** under **Source type**. Enter the exported image
-           reference and pull credentials for a private repository.
+        4. On **Boot source**, select **Boot volume** and click **Add volume**.
+        5. Choose **Registry** under **Source type**. Enter the exported reference
+           in **Container Image**, with **Username** and **Password** for a private repository.
         6. Set **Volume name** to `app-server-image`, **Destination project** to
            `vm-import-demo`, and **Disk size** to at least the source capacity.
-           Select the target StorageClass, OS preference, and architecture.
+           Select the target **StorageClass**, **Preference**, and **Architecture**.
            Set **Cron expression** to `0 2 * * *` and review **Retain revisions**.
         7. Click **Save** and wait for `app-server-image` to be ready. Set
            **Volumes project** to `vm-import-demo` and explicitly select its row.
            Leave the wizard open on **Boot source**.
 
-        For a local disk, use **Upload new → Volume**; for an HTTPS disk, use **URL**.
+        For a local disk, choose **Volume** under **Source type**; for an HTTPS disk, choose **URL**.
       review:
         instructions: "Is app-server-image ready and selected as the target boot source in vm-import-demo?"
         failedTaskHelp: "Check the image reference, pull credentials, capacity, connectivity, and DataVolume events."
@@ -168,9 +171,9 @@ spec:
     - title: "Recreate the VM with the imported disk"
       description: |-
         1. Click **Next**. On **Compute resources**, match the source's compute settings.
-        2. On **Customization**, match firmware, disk interfaces, boot order,
-           network, and initialization settings. Recreate required secrets and
-           network attachments on the target.
+        2. On **Customization**, match source settings in **Details → Boot management**,
+           **Storage**, **Network**, and **Initial run**. Recreate required secrets
+           and network attachments on the target.
         3. Confirm the boot source is `app-server-image`.
         4. On **Review and create**, clear **Start this VirtualMachine after
            creation** and click **Create VirtualMachine**.
@@ -234,8 +237,11 @@ spec:
            the disk and manifest to `vm-backups/app-server/` in your backup bucket.
         2. Verify object names and sizes; configure retention or versioning.
         3. To test a restore, generate a presigned HTTPS disk URL valid for the import.
-        4. On the target, use **Create → Custom configuration → Boot source →
-           Add volume → URL**. Enter the URL and use an unused VM and volume name.
+        4. On the target, open **Virtualization → VirtualMachines → Create**.
+           On **Deployment details**, select **Custom configuration (default)**
+           and use an unused **Name**.
+           On **Boot source**, click **Add volume**, choose **URL** under **Source type**,
+           enter **Image URL**, and use an unused **Volume name**.
         5. Recreate and verify the VM as above.
       review:
         instructions: "Are the backup objects present and the restore VM working, or did you skip this task?"
@@ -247,10 +253,10 @@ spec:
     - title: "Share VM images (optional)"
       description: |-
         1. On the target, find `app-server-image` under **Virtualization → Bootable volumes**.
-        2. In **Home → Search**, inspect its **DataSource** and **DataImportCron**.
-           Review the import's **Cron expression** and **Retain revisions** settings.
+        2. In **Home → Search**, select **DataSource** and **DataImportCron** in **Resources**.
+           Open the import cron's **Details** and review **Cron expression** and **Retain revisions**.
         3. Create another test VM with an unused name and select this bootable volume.
-        4. For another project, repeat **Add volume → Registry** there with pull credentials.
+        4. For another project, repeat **Add volume → Source type → Registry** there with pull credentials.
 
         Image refreshes apply to new VMs; existing VM disks are unchanged.
       review:
@@ -313,12 +319,15 @@ spec:
       description: |-
         If a task failed, inspect:
 
-        1. **Upload:** the upload dialog's pod log link, or **Workloads → Pods → Logs**.
-        2. **Import:** bootable volume status and related DataVolume/importer pod
-           **Events** and **Logs**.
-        3. **Guest boot:** VM **Console**, **Events**, boot order, firmware, and disk settings.
-        4. **Offline export:** **Home → Search → VirtualMachineExport** for readiness
-           and expiry. Recreate expired exports.
+        1. **Upload:** click **View pod logs** in the upload dialog, or open the pod
+           under **Workloads → Pods** and select **Logs**.
+        2. **Import:** check **Phase** in the DataVolume's **Details**. Open the related
+           importer pod's **Events** and **Logs**.
+        3. **Guest boot:** check VM **Console**, **Events**, **Configuration → Storage**,
+           and **Configuration → Details → Boot management**.
+        4. **Offline export:** in **Home → Search**, select **VirtualMachineExport** in **Resources**.
+           Check **Details → Phase** for **Ready** and **YAML** for `status.ttlExpirationTime`.
+           Recreate expired exports.
 
         See the cookbook for detailed troubleshooting.
       review:
@@ -330,15 +339,18 @@ spec:
 
     - title: "Keep or remove the tutorial resources"
       description: |-
-        1. Before keeping or deleting a VM, use **Actions → Control → Stop**
-           and wait for **Stopped**.
+        1. If a VM is running, use **Actions → Control → Stop** and wait for **Stopped**
+           before keeping or deleting it.
         2. To remove the stopped VM, use **Actions → Delete** and review associated disk choices.
-        3. Under **Virtualization → Bootable volumes**, delete unwanted tutorial
-           volumes. Check related DataSources, DataImportCrons, and PVCs.
-        4. In **Home → Search** and **Workloads → Pods**, remove unneeded tutorial
-           exports, upload pods, and credential secrets.
-        5. Delete a dedicated project from **Home → Projects** only after confirming
-           all its contents are disposable.
+        3. Under **Virtualization → Bootable volumes**, choose **Delete** from an unwanted
+           volume's options menu. Check related DataSources, DataImportCrons, and PVCs.
+        4. Remove unneeded tutorial exports with **Actions → Delete VirtualMachineExport**
+           in **Home → Search**. Remove upload pods with **Actions → Delete Pod** under
+           **Workloads → Pods**, and credential secrets with **Actions → Delete Secret**
+           under **Workloads → Secrets**.
+        5. Under **Home → Projects**, use the project's **Actions → Delete Project**
+           only after confirming its contents are disposable. Type the project name
+           in the confirmation dialog and click **Delete**.
         6. Remove unwanted registry tags, bucket objects, and local downloads.
 
         Deleting disks or backups permanently removes their data.
