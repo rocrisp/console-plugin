@@ -85,6 +85,15 @@ files.
 
 ## Deploy
 
+Pushes to `main`, including merged pull requests, run the
+[build, push, and deploy workflow](.github/workflows/build-push-deploy.yml).
+It builds the pushed commit, publishes to `quay.io/rocrisp/partner-labs-console-plugin`,
+and upgrades the `partner-labs-console-plugin` Helm release in the namespace of
+the same name. The workflow uses the cluster configured by the repository's
+`OPENSHIFT_KUBECONFIG` secret and registry credentials from `QUAY_USERNAME` and
+`QUAY_PASSWORD`. You can also run it manually from GitHub Actions with a
+different `source_ref`, image repository, release, or namespace.
+
 Build, push, and deploy an image in order with `make release`:
 
 ```sh
