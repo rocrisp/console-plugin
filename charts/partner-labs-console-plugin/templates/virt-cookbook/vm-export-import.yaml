@@ -209,7 +209,10 @@ spec:
         2. Create an export:
 
            ```bash
-           virtctl vmexport create app-server-export --vm=app-server --ttl=2h -n vm-export-demo
+           virtctl vmexport create app-server-export \
+             --vm=app-server \
+             --ttl=2h \
+             -n vm-export-demo
            ```
 
         3. Replace `<source-root-pvc>` with the PVC recorded under
@@ -217,8 +220,17 @@ spec:
            and manifest:
 
            ```bash
-           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img.gz --keep-vme -n vm-export-demo
-           virtctl vmexport download app-server-export --manifest --output=app-server-manifest.yaml --keep-vme -n vm-export-demo
+           virtctl vmexport download app-server-export \
+             --volume=<source-root-pvc> \
+             --output=app-server-root.img.gz \
+             --keep-vme \
+             -n vm-export-demo
+
+           virtctl vmexport download app-server-export \
+             --manifest \
+             --output=app-server-manifest.yaml \
+             --keep-vme \
+             -n vm-export-demo
            ```
 
         4. Confirm both files exist. Review source-specific references before
@@ -273,7 +285,8 @@ spec:
         2. Immediately after a local disk download, record its checksum:
 
            ```bash
-           sha256sum app-server-root.img.gz > app-server-root.sha256
+           sha256sum app-server-root.img.gz \
+             > app-server-root.sha256
            ```
 
         3. Store the checksum with the backup. After retrieving the disk, compare:
@@ -298,7 +311,13 @@ spec:
         2. Replace `<source-root-pvc>` and run an unattended disk download:
 
            ```bash
-           virtctl vmexport download app-server-export --volume=<source-root-pvc> --output=app-server-root.img.gz --retry=3 --readiness-timeout=10m --delete-vme -n vm-export-demo
+           virtctl vmexport download app-server-export \
+             --volume=<source-root-pvc> \
+             --output=app-server-root.img.gz \
+             --retry=3 \
+             --readiness-timeout=10m \
+             --delete-vme \
+             -n vm-export-demo
            ```
 
         3. Continue only after successful download, checksum verification, disk
