@@ -1,14 +1,3 @@
-- id: page
-  kind: page
-  title: Custom Page
-  body: Explore Console SDK examples for live watches, saved settings, walkthroughs, resource queries, and Web Terminal commands.
-  path: /partner-labs-example
-
-- id: how-to-use-demos
-  kind: general
-  title: How-to Use Demos
-  body: Learn how to navigate and use the Partner Labs Demos experience.
-
 - id: create-vm
   kind: cookbook
   title: Creating Virtual Machines
@@ -115,7 +104,3 @@
   body: Export a VM disk to a registry, import it on another cluster, and recreate the VM.
   quickStartId: vm-export-import
 
-- id: pipeline
-  kind: pipeline
-  title: Tekton Pipeline
-  body: Create and watch a simple Tekton PipelineRun in the active project. Delete it from Activity to run it again.

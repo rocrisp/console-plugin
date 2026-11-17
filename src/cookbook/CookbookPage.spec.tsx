@@ -33,14 +33,6 @@ describe('CookbookPage', () => {
     expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
   });
 
-  it('renders the how-to video', () => {
-    renderCookbook('how-to-use-demos');
-    expect(screen.getByTitle('How to Use Demos')).toHaveAttribute(
-      'src',
-      'https://www.youtube.com/embed/KWdPUqYu5tY?si=AAqlpK2Tml_Z5s0h',
-    );
-  });
-
   it('renders a jump link for every section', () => {
     renderCookbook('create-vm');
     const links = screen.getAllByRole('link', { hidden: true });
