@@ -230,3 +230,78 @@ See [Console Plugin SDK README](https://github.com/openshift/console/tree/master
 - **Add translations?** Use `t()` function, run `yarn i18n` after
 - **Test changes?** Run locally with `yarn start` + `yarn start-console`, add Playwright tests
 - **Deploy?** Build image, push to registry, install via Helm chart
+
+## Agent Workflow Shortcuts (Issue → Test → Push → Merge)
+
+Use these intent phrases as operator shortcuts for the coding agent.
+
+### Trigger phrase: `new issue`
+
+When the user says **"new issue"**, do the following in order:
+
+1. Sync branch state:
+   - `git switch main`
+   - `git pull --ff-only origin main`
+2. Create a feature branch named from the issue:
+   - `git switch -c feat/<issue-number-or-topic>`
+3. Confirm branch and clean working tree before coding.
+4. Implement only the scoped issue changes.
+
+### Trigger phrase: `test`
+
+When the user says **"test"**, run the full local quality gate:
+
+1. `make check`
+   - runs lint, unit tests, Quick Start validation, and plugin build.
+2. If `make check` fails due to environment/watchman sandbox issues, rerun equivalent checks explicitly:
+   - `yarn lint`
+   - `yarn test --ci --runInBand`
+   - `yarn validate:quickstarts`
+   - `yarn build`
+3. Report pass/fail status with exact failing command if any.
+
+### Trigger phrase: `push`
+
+When the user says **"push"**, do:
+
+1. Ensure tests passed in the current branch.
+2. Stage and commit with a scoped message.
+3. Push branch:
+   - `git push -u origin <current-branch>`
+4. Provide PR URL if available.
+
+### Trigger phrase: `merge`
+
+When the user says **"merge"**, do:
+
+1. Verify:
+   - branch is up to date with `origin/main`,
+   - required checks passed.
+2. Prefer **Squash and merge** for one clean commit per issue.
+3. After merge:
+   - `git switch main`
+   - `git pull --ff-only origin main`
+   - optionally delete feature branch local/remote.
+
+### Deployment reliability rule
+
+For repeatable deployments, prefer CI digest-pinned deployment over mutable tags:
+
+- Prefer GitHub Actions deploy workflow to build `linux/amd64`, push, and deploy by immutable digest (`repo@sha256:...`).
+- Avoid relying on `:latest` for production validation.
+- Use local `make` flow for development checks and manual troubleshooting.
+
+### Fork-only safety guard for `AGENTS.md`
+
+`AGENTS.md` is intended to remain in this fork (`origin`) and should not be contributed to `upstream`.
+
+Before opening or updating any PR that targets `upstream/main`, run:
+
+```bash
+git fetch upstream
+git diff --name-only upstream/main...HEAD -- AGENTS.md
+```
+
+Expected result: **no output**.
+
+If output includes `AGENTS.md`, remove it from the upstream-targeted branch before creating/updating that PR.
