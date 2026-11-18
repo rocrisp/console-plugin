@@ -76,15 +76,17 @@ describe('DemosPage', () => {
     expect(screen.getAllByTestId(/^card-(?!action)/)).toHaveLength(cards.length);
     expect(screen.getByText('Creating Virtual Machines')).toBeInTheDocument();
     expect(screen.getByText('Custom VM Templates')).toBeInTheDocument();
-    expect(screen.getByText('Cloning Virtual Machines')).toBeInTheDocument();
-    expect(screen.getByText('Cloud-init Fundamentals')).toBeInTheDocument();
-    expect(screen.getByText('VM Instancetypes & Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Using virtctl for VM management')).toBeInTheDocument();
-    expect(screen.getByText('Install and configure OpenShift Virtualization')).toBeInTheDocument();
-    expect(screen.getByText('Install the LVM Storage Operator')).toBeInTheDocument();
-    expect(screen.getByText('Create a VM from the web console')).toBeInTheDocument();
-    expect(screen.getByText('Create custom VM templates')).toBeInTheDocument();
-    expect(screen.getByText('Understanding VM lifecycle states')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Cloning Virtual Machines')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Cloud-init Fundamentals')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: VM Instancetypes & Preferences')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Using virtctl for VM management')).toBeInTheDocument();
+    expect(
+      screen.getByText('VM Cookbook: Install and configure OpenShift Virtualization'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Install the LVM Storage Operator')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Create a VM from the web console')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Create custom VM templates')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Understanding VM lifecycle states')).toBeInTheDocument();
   });
 
   it.each(cards.filter((card) => card.kind === 'quickstart'))(
@@ -109,11 +111,11 @@ describe('DemosPage', () => {
     const search = screen.getByRole('textbox', { name: 'Search demos' });
     fireEvent.change(search, { target: { value: 'guided walkthrough' } });
     expect(screen.getAllByTestId(/^card-(?!action)/)).toHaveLength(5);
-    expect(screen.getByText('VM Instancetypes & Preferences')).toBeInTheDocument();
-    expect(screen.getByText('Create a VM from the web console')).toBeInTheDocument();
-    expect(screen.getByText('Create custom VM templates')).toBeInTheDocument();
-    expect(screen.getByText('Cloning Virtual Machines')).toBeInTheDocument();
-    expect(screen.getByText('Cloud-init Fundamentals')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: VM Instancetypes & Preferences')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Create a VM from the web console')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Create custom VM templates')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Cloning Virtual Machines')).toBeInTheDocument();
+    expect(screen.getByText('VM Cookbook: Cloud-init Fundamentals')).toBeInTheDocument();
     fireEvent.change(search, { target: { value: 'no matching demo' } });
     expect(screen.getByText('No demos match your filters')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('clear-filters'));
