@@ -128,7 +128,7 @@ describe('DemosPage', () => {
         <DemosPage />
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Cookbook (Self-guided)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cookbook' }));
     expect(screen.getAllByTestId(/^card-(?!action)/)).toHaveLength(2);
     expect(screen.getAllByText('Open cookbook')).toHaveLength(2);
   });

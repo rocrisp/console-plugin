@@ -10,10 +10,10 @@ export function getKinds(
 > {
   return {
     page: { label: t('Page'), action: t('Open page'), color: 'blue' },
-    cookbook: { label: t('Cookbook (Self-guided)'), action: t('Open cookbook'), color: 'purple' },
+    cookbook: { label: t('Cookbook'), action: t('Open cookbook'), color: 'purple' },
     general: { label: t('Guide'), action: t('Open guide'), color: 'grey' },
     quickstart: {
-      label: t('Cookbook (Walkthrough)'),
+      label: t('Walkthrough'),
       action: t('Start walkthrough'),
       color: 'teal',
     },
