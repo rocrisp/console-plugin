@@ -260,6 +260,29 @@ When the user says **"test"**, run the full local quality gate:
    - `yarn build`
 3. Report pass/fail status with exact failing command if any.
 
+### Trigger phrase: `deploy from feature branch and test`
+
+When the user says **"deploy from feature branch and test"**, deploy the current feature branch with the GitHub Actions workflow and verify rollout:
+
+1. Detect source branch:
+   - use current branch name from `git branch --show-current` unless the user specifies another branch.
+2. Trigger manual workflow dispatch for **Build, push to Quay, and deploy** with:
+   - `source_ref=<feature-branch>`
+   - `image_repository=quay.io/rocrisp/partner-labs-console-plugin` (unless user overrides)
+   - `release_name=partner-labs-console-plugin` (unless user overrides)
+   - `namespace=partner-labs-console-plugin` (unless user overrides)
+3. Watch workflow jobs (`validate`, `build`, `deploy`) to completion.
+4. Report:
+   - run URL,
+   - source commit SHA,
+   - deployed image digest,
+   - Helm release/namespace,
+   - pass/fail and first failing step if any.
+
+Example mapping:
+- "deploy from feature branch and test" while on `feat/cookbook-labeling-cleanup`
+  means: deploy `feat/cookbook-labeling-cleanup` to namespace `partner-labs-console-plugin`.
+
 ### Trigger phrase: `push`
 
 When the user says **"push"**, do:
